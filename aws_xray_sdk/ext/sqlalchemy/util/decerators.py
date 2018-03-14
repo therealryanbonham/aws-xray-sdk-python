@@ -2,6 +2,7 @@ import re
 from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.ext.util import strip_url
 from aws_xray_sdk.core.models.entity import _valid_name_characters
+from aws_xray_sdk.core.exceptions.exceptions import AlreadyEndedException
 from future.standard_library import install_aliases
 install_aliases()
 from urllib.parse import urlparse, uses_netloc
@@ -56,9 +57,12 @@ def xray_on_call(cls, func):
                 subsegment = None
         res = func(*args, **kw)
         if subsegment is not None:
-            subsegment.set_sql(sql)
-            subsegment.put_annotation("sqlalchemy", class_name+'.'+func.__name__ );
-            xray_recorder.end_subsegment()
+            try:
+                subsegment.set_sql(sql)
+                subsegment.put_annotation("sqlalchemy", class_name+'.'+func.__name__ );
+                xray_recorder.end_subsegment()
+            except AlreadyEndedException:
+                pass  # Allowing pass here as middleware seems to end segment before we end the subsegment in some situations.
         return res
     return wrapper
 # URL Parse output
